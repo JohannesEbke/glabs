@@ -16,7 +16,7 @@ import (
 )
 
 func getResultsJsPath(assignmentCfg *config.AssignmentConfig) string {
-	return "results" + string(regexp.MustCompile("\\/").ReplaceAll([]byte(assignmentCfg.Path), []byte{'_'})) + ".js"
+	return "results_" + string(regexp.MustCompile("\\/").ReplaceAll([]byte(assignmentCfg.Path), []byte{'_'})) + ".js"
 }
 
 func (c *Client) FetchResults(assignmentCfg *config.AssignmentConfig) {
