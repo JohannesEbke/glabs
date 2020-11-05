@@ -54,8 +54,11 @@ func (c *Client) FetchResults(assignmentCfg *config.AssignmentConfig) {
 	f.WriteString("    if (score != undefined) {\n")
 	f.WriteString("        console.log(\"Setting score of \" + as.item(i).innerText + \" to \" + score);\n")
 	f.WriteString("        as.item(i).parentElement.parentElement.childNodes[4].getElementsByTagName(\"input\")[0].value = score\n")
+	f.WriteString("        delete scoreMap[as.item(i).innerText];\n")
 	f.WriteString("    }\n")
 	f.WriteString("}\n")
+	f.WriteString("console.log(\"Scores which were not set:\")\n")
+	f.WriteString("console.log(scoreMap)\n")
 	f.Close()
 }
 
