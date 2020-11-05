@@ -171,7 +171,7 @@ func (c *Client) fetchResults(assignmentCfg *config.AssignmentConfig, assignment
 				if 10*successfulTests < 9*totalTests {
 					finalScore = 0
 				}
-				fmt.Fprintf(f, "scoreMap[\"%v\"] = %v;", user.Name, finalScore)
+				fmt.Fprintf(f, "scoreMap[\"%v\"] = %v;\n", user.Name, finalScore)
 			}
 			break
 		}
