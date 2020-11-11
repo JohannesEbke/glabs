@@ -15,6 +15,73 @@ import (
 	"github.com/xanzy/go-gitlab"
 )
 
+const jsCodeHeader = `
+studentInfo = {};
+`
+
+const jsCodeFooter = `
+// CONFIGURATION
+var setFailingScores = false; // set this to true to also set Scores < 70
+var resetScores = false; // set this to true to overwrite existing scores
+
+
+// CODE
+
+// First, check that the total number of tests is the same for all students
+s = new Set(Object.values(studentInfo).map(x => x["total"]))
+if (s.size != 1) {
+	console.error("Not all students have the same total tests! Check the input!");
+	throw s;
+}
+var totalTests = s.values().next().value
+if (!(totalTests > 0)) {
+	console.error("Something is broken, zero or undefined total tests");
+	throw totalTests;
+}
+
+// calculateScore returns the score that is put into the Moodle input field
+function calculateScore(info) {
+	var score = info["score"] || 0;
+	var successfulTests = info["successes"] || 0;
+	if (successfulTests*10 < totalTests*9) {
+		score = 0;
+	}
+	return score;
+}
+
+as = document.getElementsByTagName("a");
+for (i = 0; i < as.length; i++) {
+	var studentName = as.item(i).innerText;
+	var info = studentInfo[studentName];
+	if (info != undefined) {
+		var inputElement = as.item(i).parentElement.parentElement.childNodes[4].getElementsByTagName("input")[0];
+		var existingScore = inputElement.value;
+		var newScore = calculateScore(info);
+
+		if (resetScores == false && existingScore != "") {
+			console.log("Not touching existing score " + existingScore + " of '" + studentName + "'. New score would have been " + newScore);
+			continue;
+		}
+		if (setFailingScores == false && newScore < 70) {
+			console.log("Not setting failing score " + newScore + " for '" + studentName + "'.");
+			continue;
+		}
+		if (existingScore != "") {
+			console.warn("Resetting score " + newScore + " for '" + studentName + "'. Old score was " + existingScore);
+		} else {
+			console.log("Setting score " + newScore + " for '" + studentName + "'.")
+		}
+		inputElement.value = newScore;
+		delete studentInfo[studentName]
+	}
+}
+var unfoundStudents = Object.keys(studentInfo);
+if (unfoundStudents.size > 0) {
+   console.warn("Some students were not found in Moodle and their scores were not set:")
+   console.warn(unfoundStudents);
+}
+`
+
 func getResultsJsPath(assignmentCfg *config.AssignmentConfig) string {
 	return "results_" + string(regexp.MustCompile("\\/").ReplaceAll([]byte(assignmentCfg.Path), []byte{'_'})) + ".js"
 }
@@ -30,7 +97,9 @@ func (c *Client) FetchResults(assignmentCfg *config.AssignmentConfig) {
 	if err != nil {
 		log.Error().Err(err).Msg("cannot open output file")
 	}
-	f.WriteString("scoreMap = {};\n")
+
+	f.WriteString(jsCodeHeader)
+
 	f.Close()
 
 	switch per := assignmentCfg.Per; per {
@@ -48,17 +117,7 @@ func (c *Client) FetchResults(assignmentCfg *config.AssignmentConfig) {
 		log.Error().Err(err).Msg("cannot open output file")
 	}
 
-	f.WriteString("as = document.getElementsByTagName(\"a\");\n")
-	f.WriteString("for (i = 0; i < as.length; i++) {\n")
-	f.WriteString("    var score = scoreMap[as.item(i).innerText];\n")
-	f.WriteString("    if (score != undefined) {\n")
-	f.WriteString("        console.log(\"Setting score of \" + as.item(i).innerText + \" to \" + score);\n")
-	f.WriteString("        as.item(i).parentElement.parentElement.childNodes[4].getElementsByTagName(\"input\")[0].value = score\n")
-	f.WriteString("        delete scoreMap[as.item(i).innerText];\n")
-	f.WriteString("    }\n")
-	f.WriteString("}\n")
-	f.WriteString("console.log(\"Scores which were not set:\")\n")
-	f.WriteString("console.log(scoreMap)\n")
+	f.WriteString(jsCodeFooter)
 	f.Close()
 }
 
@@ -169,12 +228,10 @@ func (c *Client) fetchResults(assignmentCfg *config.AssignmentConfig, assignment
 					return
 				}
 				log.Info().Int("s", successfulTests).Int("t", totalTests).Int("score", score).Msg("results")
-				fmt.Fprintf(f, "// %v;%v;%v;%v;%v\n", user.Username, user.Name, successfulTests, totalTests, score)
-				finalScore := score
-				if 10*successfulTests < 9*totalTests {
-					finalScore = 0
-				}
-				fmt.Fprintf(f, "scoreMap[\"%v\"] = %v;\n", user.Name, finalScore)
+				fmt.Fprintf(f, "// %v\n", user.Username)
+				fmt.Fprintf(f, "studentInfo[\"%v\"] = {\"score\": %v, \"successes\": %v, \"total\": %v};\n",
+					user.Name, score, successfulTests, totalTests)
+
 			}
 			break
 		}
